@@ -5,7 +5,7 @@
 # member, resolved against Hermes's own dev pins. Test tooling is installed by hand (README).
 [project]
 name = "hermes-whatsapp-agent-platform"
-version = "0.2.0"
+version = "0.2.1"
 description = "Meta WhatsApp Agent Platform adapter for Hermes Agent"
 license = "MIT"
 requires-python = ">=3.11"
