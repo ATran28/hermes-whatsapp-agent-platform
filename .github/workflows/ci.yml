@@ -31,13 +31,10 @@ jobs:
       fail-fast: false
       matrix:
         # v2026.9.21 = Hermes 0.21.4, the requires_hermes floor (Python 3.11-3.13).
-        # Hermes main installs its core dependencies only on Python 3.14.
         include:
           - { os: ubuntu-latest, hermes-ref: v2026.9.21, python: "3.11" }
           - { os: ubuntu-latest, hermes-ref: v2026.9.21, python: "3.12" }
           - { os: ubuntu-latest, hermes-ref: v2026.9.21, python: "3.13" }
-          - { os: ubuntu-latest, hermes-ref: main, python: "3.14" }
-          - { os: windows-latest, hermes-ref: main, python: "3.14" }
     steps:
       # Plugin and Hermes side by side, as after `hermes plugins install` (never Hermes inside the plugin).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -55,15 +52,58 @@ jobs:
       - run: python -m pytest tests -q
         working-directory: plugin
 
-  hermes-checks:
-    name: hermes plugins validate / doctor (Hermes ${{ matrix.hermes-ref }})
-    runs-on: ubuntu-latest
+  test-hermes-main:
+    # Hermes main installs only through its package manager (PM): its lock carries uv-only overrides
+    # that pip cannot apply, and CONTRIBUTING.md says not to use raw pip or uv. So build its locked
+    # Python and its dev + test environment the way CONTRIBUTING.md and its plugin-validate action do.
+    name: pytest (Hermes main, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { hermes-ref: v2026.9.21, python: "3.11" }
-          - { hermes-ref: main, python: "3.14" }
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: plugin
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: NousResearch/hermes-agent
+          ref: main
+          path: hermes-agent
+      - name: Prepare Hermes's locked Python toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = Windows ]; then bootstrap=python; else bootstrap=python3; fi
+          for step in prepare install; do
+            "$bootstrap" -S hermes-agent/scripts/ci/setup_toolchain.py "$step"               --toolchain python --home "$GITHUB_WORKSPACE/hermes-agent/.build/pm"
+          done
+      - name: Build Hermes's dev + test environment
+        id: env
+        shell: bash
+        working-directory: hermes-agent
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/hermes-test-env"
+          "$HERMES_PYTHON" -m pm.build_env --source . --out "$out" --group dev --group test
+          if [ "$RUNNER_OS" = Windows ]; then python="$out/Scripts/python.exe"; else python="$out/bin/python"; fi
+          echo "python=$python" >> "$GITHUB_OUTPUT"
+      - run: '"$PYTHON" -m pytest tests -q'
+        shell: bash
+        working-directory: plugin
+        env:
+          PYTHON: ${{ steps.env.outputs.python }}
+      - name: hermes plugins doctor
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          PYTHON: ${{ steps.env.outputs.python }}
+        run: HERMES_HOME="$(mktemp -d)" "$PYTHON" -I -m hermes_cli.main plugins doctor plugin --ci
+
+  hermes-checks:
+    name: hermes plugins validate / doctor (Hermes v2026.9.21)
+    runs-on: ubuntu-latest
     steps:
       # Separate directories so the plugin checks never scan the Hermes tree.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,16 +112,29 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: NousResearch/hermes-agent
-          ref: ${{ matrix.hermes-ref }}
+          ref: v2026.9.21
           path: hermes-agent
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: ${{ matrix.python }}
-      # Bare editable install, no extras: the environment the plugin-catalog admission CI uses
-      # (Hermes refuses wheel builds, so `pip install git+...` is not an option).
+          python-version: "3.11"
+      # Bare editable install, no extras (Hermes refuses wheel builds, so `pip install git+...` is not an option).
       - run: pip install -e ./hermes-agent
       - run: hermes plugins validate plugin
       - run: hermes plugins doctor plugin --ci
+
+  hermes-validate-main:
+    # Hermes's own reusable action: validates against Hermes main in a locked, isolated runtime,
+    # as the plugin-catalog admission CI does.
+    name: hermes plugins validate (Hermes main)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: plugin
+      - uses: NousResearch/hermes-agent/.github/actions/plugin-validate@b63fbbac4d27d1e4b8585ff7065e6dceb6207394 # main 2026-10-27
+        with:
+          path: plugin
+          hermes-ref: main
 
   version:
     if: startsWith(github.ref, 'refs/tags/v')

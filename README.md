@@ -315,14 +315,19 @@ platform_hints:
 ## Development
 
 ```bash
-git clone https://github.com/NousResearch/hermes-agent
+git clone --branch v2026.9.21 https://github.com/NousResearch/hermes-agent   # Hermes 0.21.4
 git clone https://github.com/ahtishamdilawar/hermes-whatsapp-agent-platform
-python -m venv .venv && . .venv/bin/activate      # Python 3.14 (3.11–3.13 for Hermes <= 0.21.4)
+python -m venv .venv && . .venv/bin/activate      # Python 3.11–3.13
 pip install -e ./hermes-agent "pytest==9.1.1" "pytest-asyncio==1.3.0"
 cd hermes-whatsapp-agent-platform
 pytest                                             # protocol, adapter and real-loader tests (fake Meta API)
 hermes plugins validate . && hermes plugins doctor . --ci
 ```
+
+Hermes `main` installs only through its package manager, not pip: build its test environment as its
+[CONTRIBUTING.md](https://github.com/NousResearch/hermes-agent/blob/main/CONTRIBUTING.md#manual-development-and-test-environment)
+describes (`python -m pm.build_env --source . --out <env> --group dev --group test`) and run `pytest` here with
+that environment's Python. CI does both.
 
 `client.py` is the pure `/agent/v1` client (no Hermes imports), `adapter.py` the Hermes glue, `state.py` the
 cursor store and `formatting.py` the markdown → WhatsApp converter. Media lives in `media.py` (types, limits,
