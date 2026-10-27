@@ -16,6 +16,7 @@ requires_env:
     prompt: "WhatsApp Agent Platform API key"
     url: https://www.whatsapp.com/developer/WhatsApp-Agent-Platform-Developer-Manual.pdf
     password: true
+    secret: true  # `hermes plugins install` masks the prompt only on `secret`
 optional_env:
   - name: WHATSAPP_AGENT_PLATFORM_HOME_CHANNEL
     description: "Cron/send_message default recipient: 'self' (the agent's creator, default) or user:<id>"

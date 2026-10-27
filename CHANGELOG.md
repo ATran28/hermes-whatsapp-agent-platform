@@ -5,6 +5,15 @@ All notable changes to this plugin are documented here. Versions follow [SemVer]
 
 ## [Unreleased]
 
+### Fixed
+- `hermes plugins install` now masks the API key while you type it. The manifest only set `password: true`, but the
+  install prompt reads `secret`, so the key was echoed to the terminal.
+
+### Changed
+- Dropped the `test` extra from `pyproject.toml`, so the plugin declares no Python packages at all. On Hermes main an
+  extra makes the plugin a package-installing workspace member, resolved against Hermes's own dev pins (its
+  `pytest-asyncio==1.4.0` conflicted with our `1.3.0`).
+
 ## [0.2.0] - 2026-09-30
 
 ### Added
