@@ -36,11 +36,12 @@ def test_real_loader_registers_the_platform(hermes_home):
 
 def test_install_prompt_masks_the_api_key(hermes_home):
     import hermes_cli.plugins_cmd as plugins_cmd
-    import yaml
-    from rich.console import Console
 
     if not hasattr(plugins_cmd, "_prompt_plugin_env_vars"):
         pytest.skip("this Hermes no longer prompts for requires_env in plugins_cmd")
+    import yaml  # a Hermes 0.21.4 dependency; Hermes main (which skips above) doesn't ship it
+    from rich.console import Console
+
     manifest = yaml.safe_load((ROOT / "plugin.yaml").read_text(encoding="utf-8"))
     used = []
 
