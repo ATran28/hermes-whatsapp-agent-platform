@@ -19,9 +19,11 @@ import logging
 import math
 import os
 import re
+import sys
 import threading
 import time
 import traceback
+import types
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -314,6 +316,23 @@ def _chunks(text: str) -> list[str]:
     return [c for c in out if c.strip()]
 
 
+_KEY_REGISTRY_MODULE = "_hermes_whatsapp_agent_platform_keys"
+
+
+def _process_key_registry() -> tuple[threading.Lock, set[str]]:
+    """The lock and polling-key fingerprints shared by every copy of this module in the process.
+
+    Hermes imports a separate copy of the plugin for each profile that installs it (for example
+    ``hermes_plugins.whatsapp_agent_platform__home_<hash>``), so module and class globals are per
+    copy. The registry is kept in a stub module in ``sys.modules`` that every copy finds."""
+    holder = sys.modules.get(_KEY_REGISTRY_MODULE)
+    if holder is None:
+        fresh = types.ModuleType(_KEY_REGISTRY_MODULE)
+        fresh.lock, fresh.active = threading.Lock(), set()
+        holder = sys.modules.setdefault(_KEY_REGISTRY_MODULE, fresh)
+    return holder.lock, holder.active
+
+
 class WhatsAppAgentPlatformAdapter(BasePlatformAdapter):
     """Long-poll adapter for one WhatsApp agent (one API key)."""
 
@@ -323,9 +342,9 @@ class WhatsAppAgentPlatformAdapter(BasePlatformAdapter):
     splits_long_messages = True
 
     # The machine-wide scoped lock is re-acquirable by the same PID, so also guard
-    # against two adapters for one key inside a multiplexed gateway process.
-    _guard = threading.Lock()
-    _active_keys: set[str] = set()
+    # against two adapters for one key inside a multiplexed gateway process, including
+    # adapters from another profile's copy of this module.
+    _guard, _active_keys = _process_key_registry()
 
     def __init__(self, config: PlatformConfig) -> None:
         super().__init__(config, Platform(PLATFORM_NAME))
@@ -380,11 +399,9 @@ class WhatsAppAgentPlatformAdapter(BasePlatformAdapter):
         fingerprint = key_fingerprint(key)
         with self._guard:
             if fingerprint in self._active_keys:
-                self._set_fatal_error(
-                    f"{PLATFORM_NAME}_lock",
-                    "This agent API key is already polling in this gateway process",
-                    retryable=True,
-                )
+                message = "this agent API key is already polling in this gateway process (another profile uses it)"
+                logger.error("%s: connect refused: %s", LABEL, message)
+                self._set_fatal_error(f"{PLATFORM_NAME}_lock", f"{LABEL}: {message}", retryable=True)
                 return False
             self._active_keys.add(fingerprint)
         self._fingerprint = fingerprint

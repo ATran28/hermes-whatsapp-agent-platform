@@ -8,6 +8,10 @@ All notable changes to this plugin are documented here. Versions follow [SemVer]
 ### Fixed
 - `hermes plugins install` now masks the API key while you type it. The manifest only set `password: true`, but the
   install prompt reads `secret`, so the key was echoed to the terminal.
+- One gateway serving several profiles no longer polls the same agent key twice when two profiles install the plugin
+  with the same key. Hermes loads a separate copy of the plugin per profile, and each copy had its own key guard, so
+  both adapters connected and kept replacing each other's poll (409). The second one now refuses to connect, with an
+  error saying another profile uses the key.
 
 ### Changed
 - Dropped the `test` extra from `pyproject.toml`, so the plugin declares no Python packages at all. On Hermes main an

@@ -114,6 +114,38 @@ async def test_second_adapter_for_same_key_in_process_is_refused(connected):
 
 
 @pytest.mark.asyncio
+async def test_same_key_in_another_profiles_copy_of_the_plugin_is_refused(connected, monkeypatch):
+    """Two profiles that both install the plugin get two module copies in one gateway process
+    (seen live: ``hermes_plugins.whatsapp_agent_platform__home_<hash>``); the key guard spans both."""
+    import importlib.util
+    import sys
+
+    from gateway.config import PlatformConfig
+    from wap_helpers import ROOT
+
+    name = "wap_plugin_under_test__home_copy"
+    spec = importlib.util.spec_from_file_location(name, ROOT / "__init__.py", submodule_search_locations=[str(ROOT)])
+    copy = importlib.util.module_from_spec(spec)
+    sys.modules[name] = copy
+    try:
+        spec.loader.exec_module(copy)
+        copy_adapter = importlib.import_module(f"{name}.adapter")
+        assert copy_adapter.WhatsAppAgentPlatformAdapter is not mod.WhatsAppAgentPlatformAdapter
+
+        def no_network(*_args, **_kwargs):
+            raise AssertionError("the second copy must be refused before it builds a client")
+
+        monkeypatch.setattr(copy_adapter, "AgentPlatformClient", no_network)
+        other = copy_adapter.WhatsAppAgentPlatformAdapter(PlatformConfig(enabled=True))
+        assert await other.connect() is False
+        assert other.fatal_error_code == "whatsapp_agent_platform_lock"
+        assert "another profile" in other.fatal_error_message
+    finally:
+        for key in [k for k in sys.modules if k == name or k.startswith(f"{name}.")]:
+            del sys.modules[key]
+
+
+@pytest.mark.asyncio
 async def test_single_poll_conflict_backs_off_and_resumes(meta, api_key):
     a = make_adapter()
     a._conflict_backoff = 0.01
