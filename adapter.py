@@ -291,13 +291,13 @@ def _utf16_len(text: str) -> int:
     return len(text.encode("utf-16-le")) // 2
 
 
-def _hard_split(chunk: str) -> list[str]:
-    if _utf16_len(chunk) <= MAX_TEXT_LENGTH:
+def _hard_split(chunk: str, limit: int = MAX_TEXT_LENGTH) -> list[str]:
+    if _utf16_len(chunk) <= limit:
         return [chunk]
     parts, current, width = [], [], 0
     for char in chunk:
         w = 2 if ord(char) > 0xFFFF else 1
-        if width + w > MAX_TEXT_LENGTH:
+        if width + w > limit:
             parts.append("".join(current))
             current, width = [], 0
         current.append(char)
