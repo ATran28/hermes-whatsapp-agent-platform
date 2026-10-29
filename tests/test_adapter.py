@@ -542,7 +542,10 @@ async def test_overlong_reply_prefix_is_ignored_with_a_warning(prefixed, meta, c
     a = await prefixed({"reply_prefix": prefix})
     assert (await a.send(CREATOR, "hello")).success
     assert meta.bodies("messages")[0]["text"]["body"] == "hello"
-    assert "reply prefix" in caplog.text and prefix not in caplog.text and "PFX" not in caplog.text
+    assert "reply prefix ignored" in caplog.text and "Shorten reply_prefix" in caplog.text, (
+        "names the cause and the fix"
+    )
+    assert prefix not in caplog.text and "PFX" not in caplog.text
 
 
 @pytest.mark.asyncio

@@ -184,7 +184,14 @@ def _reply_prefix(config: Any) -> str:
     value = extra_or_secret(extra if isinstance(extra, dict) else None, REPLY_PREFIX_KEY, REPLY_PREFIX_ENV, "")
     prefix = str(value or "").replace("\\n", "\n")
     if _utf16_len(prefix) > REPLY_PREFIX_MAX:
-        logger.warning("%s: ignoring reply prefix (longer than %d UTF-16 units)", LABEL, REPLY_PREFIX_MAX)
+        logger.warning(
+            "%s: reply prefix ignored, it is %d UTF-16 units and the limit is %d. Shorten %s in config.yaml or %s.",
+            LABEL,
+            _utf16_len(prefix),
+            REPLY_PREFIX_MAX,
+            REPLY_PREFIX_KEY,
+            REPLY_PREFIX_ENV,
+        )
         return ""
     return prefix
 
